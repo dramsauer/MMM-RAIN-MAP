@@ -48,23 +48,19 @@
 	<body style="background-color: #fff;">
 		<div id="rain-map-wrapper">
 			<div id="rain-map-map"></div>
-			<div class="rain-map-time-wrapper">
-				<i class="fas fa-clock"></i><span id="rain-map-time"></span>
+			<div id="rain-map-time-wrapper" class="rain-map-time-wrapper">
+				<i id="rain-map-clock" class="fas fa-clock"></i
+				><span id="rain-map-time"></span>
 			</div>
 		</div>
 		<script>
-			let config2 = {
+			let config = {
 				animationSpeedMs: 600,
 				defaultZoomLevel: 5,
 				displayClockSymbol: true,
 				displayOnRainOnly: false,
-				displayTime: true,
+				displayTime: false,
 				extraDelayLastFrameMs: 2000,
-				googleBackgroundColor: "rgba(0, 0, 0, 0)",
-				googleDisableDefaultUI: true,
-				googleKey: "",
-				googleMapTypeId: "terrain",
-				map: "OSM",
 				mapHeightPx: 420,
 				mapWidthPx: 420,
 				markers: [
@@ -99,6 +95,13 @@
 			];
 
 			function renderMap() {
+				if (!config.displayClockSymbol) {
+					document.getElementById("rain-map-clock").style.display = "none";
+				}
+				if (!config.displayTime) {
+					document.getElementById("rain-map-time-wrapper").style.display =
+						"none";
+				}
 				document.getElementById(
 					"rain-map-map"
 				).style.height = `${config.mapHeightPx}px`;
@@ -230,23 +233,17 @@
 
 			function play() {
 				showFrame(animationPosition + 1);
-
+				const screenshotInfo = {
+					timestampPosition: animationPosition + 1,
+					timestamps: timestamps.length,
+					markerPosition: markerPosition + 1,
+					markers: config.markers.length,
+					ts: timestamps[animationPosition],
+				};
 				if (typeof window.takeScreenshot !== "undefined") {
-					window.takeScreenshot({
-						timestampPosition: animationPosition + 1,
-						timestamps: timestamps.length,
-						markerPosition: markerPosition + 1,
-						markers: config.markers.length,
-						ts: timestamps[animationPosition],
-					});
+					window.takeScreenshot(screenshotInfo);
 				} else {
-					console.log({
-						timestampPosition: animationPosition + 1,
-						timestamps: timestamps.length,
-						markerPosition: markerPosition + 1,
-						markers: config.markers.length,
-						ts: timestamps[animationPosition],
-					});
+					console.log(screenshotInfo);
 				}
 
 				let zoomAfterPlay = false;
@@ -274,18 +271,14 @@
 								? markerPosition + 1
 								: 0;
 						const marker = config.markers[markerPosition];
-						if (config.map.toUpperCase() === "GOOGLE") {
-							map.setCenter(marker.lat, marker.lng);
-							map.setZoom(marker.zoom || config.defaultZoomLevel);
-						} else {
-							map.setView(
-								new L.LatLng(marker.lat, marker.lng),
-								marker.zoom || config.defaultZoomLevel,
-								{
-									animation: false,
-								}
-							);
-						}
+
+						map.setView(
+							new L.LatLng(marker.lat, marker.lng),
+							marker.zoom || config.defaultZoomLevel,
+							{
+								animation: false,
+							}
+						);
 					}
 
 					play();

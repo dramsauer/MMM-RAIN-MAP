@@ -15,13 +15,18 @@ module.exports = NodeHelper.create({
 	renderMap: async function (remoteConfig) {
 		const self = this;
 		const shotsDir = `${self.path}/shots/`;
+		const pubDir = `${self.path}/public/`;
 		let status = {
 			percentage: 0,
 			state: "Started",
 		};
 		self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 		try {
-			let regex = /[.]png$/;
+			let regex = /[.]gif$/;
+			fs.readdirSync(pubDir)
+				.filter((f) => regex.test(f))
+				.map((f) => fs.unlinkSync(pubDir + f));
+			regex = /[.]gif$/;
 			fs.readdirSync(shotsDir)
 				.filter((f) => regex.test(f))
 				.map((f) => fs.unlinkSync(shotsDir + f));
@@ -60,7 +65,7 @@ module.exports = NodeHelper.create({
 
 			await page.exposeFunction("takeScreenshot", async (data) => {
 				console.log(data);
-				page
+				await page
 					.screenshot({
 						path: `${shotsDir}shot-${data.markerPosition}-${data.ts}.png`,
 					})
@@ -71,6 +76,7 @@ module.exports = NodeHelper.create({
 					(remoteConfig.markerChangeInterval === 0 &&
 						data.timestampPosition >= data.timestamps)
 				) {
+					console.log("Complete");
 					status = {
 						percentage: 75,
 						state: "Capturing complete",
@@ -86,6 +92,7 @@ module.exports = NodeHelper.create({
 						state: "Rendering gif animation...",
 					};
 					self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
+					const currentTimestamp = Date.now();
 					const stream = pngFileStream(`${shotsDir}shot*.png`)
 						.pipe(
 							encoder.createWriteStream({
@@ -95,14 +102,16 @@ module.exports = NodeHelper.create({
 							})
 						)
 						.pipe(
-							fs.createWriteStream(`${self.path}/public/preRenderedMap.gif`)
+							fs.createWriteStream(
+								`${self.path}/public/preRenderedMap${currentTimestamp}.gif`
+							)
 						);
 
 					stream.on("finish", function () {
 						console.log("Rendering done.");
 						self.sendSocketNotification(
 							"RAIN_MAP_PRERENDER_SUCCESS",
-							"preRenderedMap.gif"
+							`preRenderedMap${currentTimestamp}.gif`
 						);
 					});
 				}
@@ -124,8 +133,6 @@ module.exports = NodeHelper.create({
 			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 		} catch (err) {
 			console.log(err);
-		} finally {
-			console.log("Map prerendering finished.");
 		}
 	},
 });

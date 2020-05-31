@@ -8,7 +8,7 @@ Module.register("MMM-RAIN-MAP", {
 		chromePath: null, // Set to "/usr/bin/chromium-browser" on Raspbian
 		chromeTimeout: 0,
 		defaultZoomLevel: 5,
-		displayClockSymbol: true,
+		displayClockSymbol: false,
 		displayOnRainOnly: false,
 		displayTime: true,
 		extraDelayLastFrameMs: 2000,
@@ -27,7 +27,7 @@ Module.register("MMM-RAIN-MAP", {
 		rainIcons: ["09d", "09n", "10d", "10n", "11d", "11n", "13d", "13n"],
 		overlayOpacity: 0.65,
 		timeFormat: config.timeFormat || 24,
-		updateIntervalMs: 300000,
+		updateIntervalMs: 120000,
 	},
 	animationPosition: 0,
 	animationTimer: false,
@@ -39,7 +39,6 @@ Module.register("MMM-RAIN-MAP", {
 	isCurrentlyRaining: false,
 
 	start: function () {
-		console.log("rainmap FE started");
 		this.scheduleUpdate(this.updateIntervalMs);
 		this.requestPrerenderedImage();
 	},
@@ -57,7 +56,6 @@ Module.register("MMM-RAIN-MAP", {
 	socketNotificationReceived: function (notification, payload) {
 		if (notification === "RAIN_MAP_PRERENDER_SUCCESS") {
 			const path = "modules/MMM-RAIN-MAP/public/" + payload;
-			console.log("Set img path", path);
 			document.getElementById("weather-map-prerendered").src = path;
 			document.getElementById("weather-map-prerendered").style.display =
 				"block";
@@ -86,11 +84,9 @@ Module.register("MMM-RAIN-MAP", {
 	},
 
 	scheduleUpdate: function () {
-		console.log("rainmap FE Set schedule");
 		const self = this;
 		setInterval(function () {
-			console.log("rainmap FE Socket");
-			this.requestPrerenderedImage();
+			self.requestPrerenderedImage();
 		}, self.config.updateIntervalMs);
 	},
 });
