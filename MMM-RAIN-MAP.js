@@ -12,11 +12,6 @@ Module.register("MMM-RAIN-MAP", {
 		displayOnRainOnly: false,
 		displayTime: true,
 		extraDelayLastFrameMs: 2000,
-		googleBackgroundColor: "rgba(0, 0, 0, 0)",
-		googleDisableDefaultUI: true,
-		googleKey: "",
-		googleMapTypeId: "terrain",
-		map: "OSM",
 		mapHeightPx: 320,
 		mapWidthPx: 320,
 		markers: [

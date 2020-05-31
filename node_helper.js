@@ -26,7 +26,7 @@ module.exports = NodeHelper.create({
 			fs.readdirSync(pubDir)
 				.filter((f) => regex.test(f))
 				.map((f) => fs.unlinkSync(pubDir + f));
-			regex = /[.]gif$/;
+			regex = /[.]png$/;
 			fs.readdirSync(shotsDir)
 				.filter((f) => regex.test(f))
 				.map((f) => fs.unlinkSync(shotsDir + f));
