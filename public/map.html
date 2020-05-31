@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>ddfhdfgh</title>
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+			integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+			crossorigin=""
+		/>
+		<link
+			rel="stylesheet"
+			href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css"
+			integrity="sha384-AYmEC3Yw5cVb3ZcuHtOA93w35dYTsvhLPVnYs9eStHfGJvOvKxVfELGroGkvsg+p"
+			crossorigin="anonymous"
+		/>
+		<link rel="stylesheet" href="/css/main.css" />
+
+		<script
+			src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+			integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+			crossorigin=""
+		></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.26.0/moment-with-locales.min.js"></script>
+
+		<style>
+			body {
+				margin: 0;
+			}
+			.rain-map-time-wrapper {
+				position: absolute;
+				top: 10px;
+				background: #ccc;
+				padding: 0 10px 0 10px;
+				z-index: 999;
+				opacity: 0.75;
+				font-weight: bold;
+				color: #000;
+				font-size: 22px;
+			}
+			.rain-map-time-wrapper i {
+				margin-right: 6px;
+			}
+		</style>
+	</head>
+	<body style="background-color: #fff;">
+		<div id="rain-map-wrapper">
+			<div id="rain-map-map"></div>
+			<div class="rain-map-time-wrapper">
+				<i class="fas fa-clock"></i><span id="rain-map-time"></span>
+			</div>
+		</div>
+		<script>
+			let config2 = {
+				animationSpeedMs: 600,
+				defaultZoomLevel: 5,
+				displayClockSymbol: true,
+				displayOnRainOnly: false,
+				displayTime: true,
+				extraDelayLastFrameMs: 2000,
+				googleBackgroundColor: "rgba(0, 0, 0, 0)",
+				googleDisableDefaultUI: true,
+				googleKey: "",
+				googleMapTypeId: "terrain",
+				map: "OSM",
+				mapHeightPx: 420,
+				mapWidthPx: 420,
+				markers: [{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false }],
+				markerChangeInterval: 0,
+				rainIcons: ["09d", "09n", "10d", "10n", "11d", "11n", "13d", "13n"],
+				overlayOpacity: 0.65,
+				timeFormat: 24,
+				updateIntervalMs: 300000,
+			};
+			let map;
+			let animationPosition = 0;
+			let animationTimer = false;
+			let loopNumber = 1;
+			let markerPosition = 0;
+			let radarLayers = [];
+			let timestamps = [];
+
+			const supportedIconColors = [
+				"black",
+				"blue",
+				"gold",
+				"green",
+				"grey",
+				"orange",
+				"red",
+				"violet",
+				"yellow",
+			];
+
+			function renderMap() {
+				document.getElementById(
+					"rain-map-map"
+				).style.height = `${config.mapHeightPx}px`;
+				document.getElementById(
+					"rain-map-map"
+				).style.width = `${config.mapWidthPx}px`;
+				const initialMarker = config.markers[0];
+				map = L.map("rain-map-map", {
+					zoomControl: false,
+					attributionControl: false,
+				}).setView(
+					[initialMarker.lat, initialMarker.lng],
+					initialMarker.zoom || config.defaultZoomLevel
+				);
+				const tileLayer = L.tileLayer(
+					"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+				)
+					.addTo(map)
+					.on("load", function (e) {
+						updateData();
+					});
+				config.markers.forEach((marker) => {
+					if (!marker.hidden) {
+						const color =
+							marker.color && supportedIconColors.includes(marker.color)
+								? marker.color
+								: "red";
+						L.marker([marker.lat, marker.lng], {
+							icon: new L.Icon({
+								iconUrl: `https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+								shadowUrl:
+									"https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+								iconSize: [25, 41],
+								iconAnchor: [12, 41],
+								popupAnchor: [1, -34],
+								shadowSize: [41, 41],
+							}),
+						}).addTo(map);
+					}
+				});
+			}
+
+			function addLayer(ts) {
+				if (!radarLayers[ts]) {
+					radarLayers[ts] = new L.TileLayer(
+						"https://tilecache.rainviewer.com/v2/radar/" +
+							ts +
+							"/256/{z}/{x}/{y}/2/1_1.png",
+						{
+							tileSize: 256,
+							opacity: 0.001,
+							zIndex: ts,
+						}
+					);
+				}
+
+				if (!map.hasLayer(radarLayers[ts])) {
+					map.addLayer(radarLayers[ts]);
+				}
+			}
+			function showFrame(nextPosition) {
+				const preloadingDirection =
+					nextPosition - animationPosition > 0 ? 1 : -1;
+
+				changeRadarPosition(nextPosition);
+				changeRadarPosition(nextPosition + preloadingDirection, true);
+			}
+
+			function changeRadarPosition(position, preloadOnly) {
+				while (position >= timestamps.length) {
+					position -= timestamps.length;
+				}
+				while (position < 0) {
+					position += timestamps.length;
+				}
+
+				const currentTimestamp = timestamps[animationPosition];
+				const nextTimestamp = timestamps[position];
+
+				addLayer(nextTimestamp);
+
+				if (preloadOnly) {
+					return;
+				}
+
+				animationPosition = position;
+
+				if (radarLayers[currentTimestamp]) {
+					radarLayers[currentTimestamp].setOpacity(0);
+				}
+				radarLayers[nextTimestamp].setOpacity(config.overlayOpacity);
+
+				if (config.displayTime) {
+					const time = moment(nextTimestamp * 1000);
+					if (config.timezone) {
+						time.tz(config.timezone);
+					}
+					let hourSymbol = "HH";
+					if (config.timeFormat !== 24) {
+						hourSymbol = "h";
+					}
+
+					document.getElementById("rain-map-time").innerHTML = `${time.format(
+						hourSymbol + ":mm"
+					)}`;
+				}
+			}
+			function updateData() {
+				getTimeStamps();
+			}
+
+			function getTimeStamps() {
+				const apiRequest = new XMLHttpRequest();
+				apiRequest.open(
+					"GET",
+					"https://api.rainviewer.com/public/maps.json",
+					true
+				);
+				apiRequest.onload = function (e) {
+					// save available timestamps and show the latest frame: "-1" means "timestamp.lenght - 1"
+					stop();
+					timestamps = JSON.parse(apiRequest.response);
+					showFrame(-1);
+					play();
+				};
+				apiRequest.send();
+			}
+
+			function play() {
+				showFrame(animationPosition + 1);
+				let zoomAfterPlay = false;
+				if (
+					config.markerChangeInterval > 0 &&
+					config.markers.length > 1 &&
+					animationPosition + 1 === timestamps.length
+				) {
+					if (config.markerChangeInterval === loopNumber) {
+						zoomAfterPlay = true;
+						loopNumber = 1;
+					} else {
+						loopNumber++;
+					}
+				}
+
+				const timeOut =
+					animationPosition + 1 === timestamps.length
+						? config.animationSpeedMs + config.extraDelayLastFrameMs
+						: config.animationSpeedMs;
+				animationTimer = setTimeout(function () {
+					if (zoomAfterPlay) {
+						console.log("Zoom Case old", markerPosition);
+						markerPosition =
+							markerPosition < config.markers.length - 1
+								? markerPosition + 1
+								: 0;
+						console.log("Zoom Case new", markerPosition);
+						const marker = config.markers[markerPosition];
+						if (config.map.toUpperCase() === "GOOGLE") {
+							map.setCenter(marker.lat, marker.lng);
+							map.setZoom(marker.zoom || config.defaultZoomLevel);
+						} else {
+							map.setView(
+								new L.LatLng(marker.lat, marker.lng),
+								marker.zoom || config.defaultZoomLevel,
+								{
+									animation: true,
+								}
+							);
+						}
+						map.on("zoomend", function (e) {
+							window.takeScreenshot({
+								timestampPosition: animationPosition + 2,
+								timestamps: timestamps.length,
+								markerPosition: markerPosition + 1,
+								markers: config.markers.length,
+								ts: timestamps[animationPosition + 1],
+							});
+						});
+					} else {
+						window.takeScreenshot({
+							timestampPosition: animationPosition + 2,
+							timestamps: timestamps.length,
+							markerPosition: markerPosition + 1,
+							markers: config.markers.length,
+							ts: timestamps[animationPosition + 1],
+						});
+					}
+
+					play();
+				}, timeOut);
+			}
+
+			function stop() {
+				if (animationTimer) {
+					clearTimeout(animationTimer);
+					animationTimer = false;
+					return true;
+				}
+				return false;
+			}
+
+			function start() {
+				console.log("start");
+				renderMap();
+				updateData();
+				play();
+			}
+		</script>
+	</body>
+</html>

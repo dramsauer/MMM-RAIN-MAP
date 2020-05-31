@@ -15,10 +15,13 @@ Module.register("MMM-RAIN-MAP", {
 		googleKey: "",
 		googleMapTypeId: "terrain",
 		map: "OSM",
-		mapHeight: "420px",
-		mapWidth: "420px",
-		markers: [{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false }],
-		markerChangeInterval: 0,
+		mapHeightPx: 420,
+		mapWidthPx: 420,
+		markers: [
+			{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false },
+			{ lat: 50, lng: 9.27, zoom: 4, color: "red", hidden: true },
+		],
+		markerChangeInterval: 1,
 		rainIcons: ["09d", "09n", "10d", "10n", "11d", "11n", "13d", "13n"],
 		overlayOpacity: 0.65,
 		timeFormat: config.timeFormat || 24,
@@ -33,65 +36,32 @@ Module.register("MMM-RAIN-MAP", {
 	timestamps: [],
 	isCurrentlyRaining: false,
 
-	getStyles: () => {
-		return [
-			"MMM-RAIN-MAP.css",
-			"https://unpkg.com/leaflet@1.6.0/dist/leaflet.css",
-		];
-	},
-
-	getScripts: function () {
-		return [this.file("utils.js"), "moment.js", "moment-timezone.js"];
-	},
-
-	getTranslations: () => {
-		return {
-			en: "translations/en.json",
-			de: "translations/de.json",
-		};
-	},
-
 	start: function () {
+		console.log("rainmap FE started");
 		this.scheduleUpdate(this.updateIntervalMs);
+		this.requestPrerenderedImage();
 	},
 
 	getDom: function () {
-		if (this.config.map.toUpperCase() === "GOOGLE") {
-			Utils.initGoogleMap(this);
-		} else {
-			Utils.initOSMap(this);
-		}
+		let app = document.createElement("div");
 
-		return Utils.initMapWrapper(this);
+		app.innerHTML =
+			"<div><span id='weather-map-loading'><span id='weather-map-loading-status'></span>Map is loaded.&nbsp;<i class='fas fa-satellite'></i></span><img style='display: none;' id='weather-map-prerendered' src=''></div>";
+
+		return app;
 	},
 
-	updateData: function () {
-		if (this.config.displayOnRainOnly) {
-			if (this.isCurrentlyRaining) {
-				this.getTimeStamps();
-				this.show();
-			} else {
-				this.hide();
-				this.stop();
-			}
-		} else {
-			this.getTimeStamps();
+	socketNotificationReceived: function (notification, payload) {
+		if (notification === "RAIN_MAP_PRERENDER_SUCCESS") {
+			const path = "modules/MMM-RAIN-MAP/public/" + payload;
+			console.log("Set img path", path);
+			document.getElementById("weather-map-prerendered").src = path;
+			document.getElementById("weather-map-prerendered").style.display =
+				"block";
+			document.getElementById("weather-map-loading").style.display = "none";
+		} else if (notification === "RAIN_MAP_PRERENDER_STATUS") {
+			document.getElementById("weather-map-loading-status").innerHTML = payload;
 		}
-	},
-
-	getTimeStamps: function () {
-		const self = this;
-		const apiRequest = new XMLHttpRequest();
-		apiRequest.open("GET", "https://api.rainviewer.com/public/maps.json", true);
-		apiRequest.onload = function (e) {
-			// save available timestamps and show the latest frame: "-1" means "timestamp.lenght - 1"
-			self.stop();
-			Utils.clearLayers(self);
-			self.timestamps = JSON.parse(apiRequest.response);
-			Utils.showFrame(self, -1);
-			self.play(self);
-		};
-		apiRequest.send();
 	},
 
 	notificationReceived: function (notification, payload, sender) {
@@ -100,71 +70,22 @@ Module.register("MMM-RAIN-MAP", {
 				this.isCurrentlyRaining = this.config.rainIcons.includes(
 					payload.data.weather[0].icon
 				);
-				this.updateData();
 			} catch (err) {
 				console.warn("Could not extract weather data");
 			}
 		}
 	},
 
+	requestPrerenderedImage: function () {
+		this.sendSocketNotification("RAIN_MAP_PRERENDER", this.config);
+	},
+
 	scheduleUpdate: function () {
+		console.log("rainmap FE Set schedule");
 		const self = this;
 		setInterval(function () {
-			self.updateData();
+			console.log("rainmap FE Socket");
+			this.requestPrerenderedImage();
 		}, self.config.updateIntervalMs);
-	},
-
-	play: function () {
-		Utils.showFrame(this, this.animationPosition + 1);
-		let zoomAfterPlay = false;
-		if (
-			this.config.markerChangeInterval > 0 &&
-			this.config.markers.length > 1 &&
-			this.animationPosition + 1 === this.timestamps.length
-		) {
-			if (this.config.markerChangeInterval === this.loopNumber) {
-				zoomAfterPlay = true;
-				this.loopNumber = 1;
-			} else {
-				this.loopNumber++;
-			}
-		}
-		const self = this;
-		const timeOut =
-			this.animationPosition + 1 === this.timestamps.length
-				? this.config.animationSpeedMs + this.config.extraDelayLastFrameMs
-				: this.config.animationSpeedMs;
-		this.animationTimer = setTimeout(function () {
-			if (zoomAfterPlay) {
-				self.markerPosition =
-					self.markerPosition < self.config.markers.length - 1
-						? self.markerPosition + 1
-						: 0;
-				const marker = self.config.markers[self.markerPosition];
-				console.log("Position:", self.markerPosition, "Marker", marker);
-				if (self.config.map.toUpperCase() === "GOOGLE") {
-					self.map.setCenter(marker.lat, marker.lng);
-					self.map.setZoom(marker.zoom || self.config.defaultZoomLevel);
-				} else {
-					self.map.setView(
-						new L.LatLng(marker.lat, marker.lng),
-						marker.zoom || self.config.defaultZoomLevel,
-						{
-							animation: true,
-						}
-					);
-				}
-			}
-			self.play();
-		}, timeOut);
-	},
-
-	stop: function () {
-		if (this.animationTimer) {
-			clearTimeout(this.animationTimer);
-			this.animationTimer = false;
-			return true;
-		}
-		return false;
 	},
 });
