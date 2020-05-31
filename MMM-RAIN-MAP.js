@@ -5,6 +5,8 @@
 Module.register("MMM-RAIN-MAP", {
 	defaults: {
 		animationSpeedMs: 600,
+		chromePath: null, // Set to "/usr/bin/chromium-browser" on Raspbian
+		chromeTimeout: 0,
 		defaultZoomLevel: 5,
 		displayClockSymbol: true,
 		displayOnRainOnly: false,
@@ -15,13 +17,13 @@ Module.register("MMM-RAIN-MAP", {
 		googleKey: "",
 		googleMapTypeId: "terrain",
 		map: "OSM",
-		mapHeightPx: 420,
-		mapWidthPx: 420,
+		mapHeightPx: 320,
+		mapWidthPx: 320,
 		markers: [
 			{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false },
 			{ lat: 50, lng: 9.27, zoom: 4, color: "red", hidden: true },
 		],
-		markerChangeInterval: 1,
+		markerChangeInterval: 0,
 		rainIcons: ["09d", "09n", "10d", "10n", "11d", "11n", "13d", "13n"],
 		overlayOpacity: 0.65,
 		timeFormat: config.timeFormat || 24,
@@ -45,9 +47,10 @@ Module.register("MMM-RAIN-MAP", {
 	getDom: function () {
 		let app = document.createElement("div");
 
-		app.innerHTML =
-			"<div><span id='weather-map-loading'><span id='weather-map-loading-status'></span>Map is loaded.&nbsp;<i class='fas fa-satellite'></i></span><img style='display: none;' id='weather-map-prerendered' src=''></div>";
-
+		app.innerHTML = `<div>
+			<span style='font-size: small;'id='weather-map-loading'><i class='fas fa-satellite'></i>&nbsp;Generating map... <span id='weather-map-loading-status'></span></span>
+			<img style='display: none;' id='weather-map-prerendered' src=''>
+			</div>`;
 		return app;
 	},
 
@@ -60,7 +63,9 @@ Module.register("MMM-RAIN-MAP", {
 				"block";
 			document.getElementById("weather-map-loading").style.display = "none";
 		} else if (notification === "RAIN_MAP_PRERENDER_STATUS") {
-			document.getElementById("weather-map-loading-status").innerHTML = payload;
+			document.getElementById(
+				"weather-map-loading-status"
+			).innerHTML = `${payload.percentage}% - ${payload.state}`;
 		}
 	},
 

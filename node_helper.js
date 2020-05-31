@@ -14,55 +14,79 @@ module.exports = NodeHelper.create({
 	},
 	renderMap: async function (remoteConfig) {
 		const self = this;
-		self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", "0% - Started");
+		const shotsDir = `${self.path}/shots/`;
+		let status = {
+			percentage: 0,
+			state: "Started",
+		};
+		self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 		try {
+			let regex = /[.]png$/;
+			fs.readdirSync(shotsDir)
+				.filter((f) => regex.test(f))
+				.map((f) => fs.unlinkSync(shotsDir + f));
 			const browser = await puppeteer.launch({
+				executablePath: remoteConfig.chromePath,
 				headless: true,
 				devtools: false,
 			});
-			self.sendSocketNotification(
-				"RAIN_MAP_PRERENDER_STATUS",
-				"20% - Virtual Browser started"
-			);
+			status = {
+				percentage: 10,
+				state: "Browser launched",
+			};
+			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 			const page = await browser.newPage();
-			console.log("path", this.path);
+			await page.setDefaultNavigationTimeout(remoteConfig.chromeTimeout);
 			await page.goto(
 				"http://localhost:8080/modules/MMM-RAIN-MAP/public/map.html",
 				{
 					waitUntil: "networkidle0",
 				}
 			);
-			console.log("Config is:", remoteConfig);
+			status = {
+				percentage: 20,
+				state: "Map opened",
+			};
+			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 			await page.setViewport({
 				width: remoteConfig.mapWidthPx,
 				height: remoteConfig.mapHeightPx,
 			});
+			status = {
+				percentage: 25,
+				state: "Viewport adjusted",
+			};
+			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 
 			await page.exposeFunction("takeScreenshot", async (data) => {
 				console.log(data);
 				page
 					.screenshot({
-						path: `${self.path}/shots/shot-${data.markerPosition}-${data.ts}.png`,
+						path: `${shotsDir}shot-${data.markerPosition}-${data.ts}.png`,
 					})
 					.catch((err) => {});
 				if (
-					data.markerPosition >= data.markers &&
-					data.timestampPosition >= data.timestamps
+					(data.markerPosition >= data.markers &&
+						data.timestampPosition >= data.timestamps) ||
+					(remoteConfig.markerChangeInterval === 0 &&
+						data.timestampPosition >= data.timestamps)
 				) {
-					self.sendSocketNotification(
-						"RAIN_MAP_PRERENDER_STATUS",
-						"60 % - Capturing complete"
-					);
+					status = {
+						percentage: 75,
+						state: "Capturing complete",
+					};
+					self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 					await browser.close();
 					const encoder = new GIFEncoder(
 						remoteConfig.mapWidthPx,
 						remoteConfig.mapHeightPx
 					);
-					self.sendSocketNotification(
-						"RAIN_MAP_PRERENDER_STATUS",
-						"> 60% - Rendering gif..."
-					);
-					const stream = pngFileStream(`${self.path}/shots/shot*.png`)
+					status = {
+						percentage: 85,
+						state: "Rendering gif animation...",
+					};
+					self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
+					const stream = pngFileStream(`${shotsDir}shot*.png`)
 						.pipe(
 							encoder.createWriteStream({
 								repeat: 0,
@@ -83,23 +107,25 @@ module.exports = NodeHelper.create({
 					});
 				}
 			});
-			self.sendSocketNotification(
-				"RAIN_MAP_PRERENDER_STATUS",
-				"25% - Browser setup complete"
-			);
+			status = {
+				percentage: 30,
+				state: "Setup complete. Ready to capture!",
+			};
+			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 
 			await page.evaluate((data) => {
 				config = data;
 				renderMap();
 			}, remoteConfig);
-			self.sendSocketNotification(
-				"RAIN_MAP_PRERENDER_STATUS",
-				"30% - Capturing started"
-			);
+			status = {
+				percentage: 35,
+				state: "Capturing started...",
+			};
+			self.sendSocketNotification("RAIN_MAP_PRERENDER_STATUS", status);
 		} catch (err) {
 			console.log(err);
 		} finally {
-			console.log("bla");
+			console.log("Map prerendering finished.");
 		}
 	},
 });

@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>ddfhdfgh</title>
+		<title></title>
 		<link
 			rel="stylesheet"
 			href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
@@ -67,7 +67,10 @@
 				map: "OSM",
 				mapHeightPx: 420,
 				mapWidthPx: 420,
-				markers: [{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false }],
+				markers: [
+					{ lat: 50, lng: 9.27, zoom: 8, color: "red", hidden: false },
+					{ lat: 70, lng: 19.27, zoom: 4, color: "blue", hidden: false },
+				],
 				markerChangeInterval: 0,
 				rainIcons: ["09d", "09n", "10d", "10n", "11d", "11n", "13d", "13n"],
 				overlayOpacity: 0.65,
@@ -81,6 +84,7 @@
 			let markerPosition = 0;
 			let radarLayers = [];
 			let timestamps = [];
+			let tileLayer = null;
 
 			const supportedIconColors = [
 				"black",
@@ -109,11 +113,12 @@
 					[initialMarker.lat, initialMarker.lng],
 					initialMarker.zoom || config.defaultZoomLevel
 				);
-				const tileLayer = L.tileLayer(
+				tileLayer = L.tileLayer(
 					"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 				)
 					.addTo(map)
 					.on("load", function (e) {
+						console.log("onload complete");
 						updateData();
 					});
 				config.markers.forEach((marker) => {
@@ -225,6 +230,25 @@
 
 			function play() {
 				showFrame(animationPosition + 1);
+
+				if (typeof window.takeScreenshot !== "undefined") {
+					window.takeScreenshot({
+						timestampPosition: animationPosition + 1,
+						timestamps: timestamps.length,
+						markerPosition: markerPosition + 1,
+						markers: config.markers.length,
+						ts: timestamps[animationPosition],
+					});
+				} else {
+					console.log({
+						timestampPosition: animationPosition + 1,
+						timestamps: timestamps.length,
+						markerPosition: markerPosition + 1,
+						markers: config.markers.length,
+						ts: timestamps[animationPosition],
+					});
+				}
+
 				let zoomAfterPlay = false;
 				if (
 					config.markerChangeInterval > 0 &&
@@ -245,12 +269,10 @@
 						: config.animationSpeedMs;
 				animationTimer = setTimeout(function () {
 					if (zoomAfterPlay) {
-						console.log("Zoom Case old", markerPosition);
 						markerPosition =
 							markerPosition < config.markers.length - 1
 								? markerPosition + 1
 								: 0;
-						console.log("Zoom Case new", markerPosition);
 						const marker = config.markers[markerPosition];
 						if (config.map.toUpperCase() === "GOOGLE") {
 							map.setCenter(marker.lat, marker.lng);
@@ -260,27 +282,10 @@
 								new L.LatLng(marker.lat, marker.lng),
 								marker.zoom || config.defaultZoomLevel,
 								{
-									animation: true,
+									animation: false,
 								}
 							);
 						}
-						map.on("zoomend", function (e) {
-							window.takeScreenshot({
-								timestampPosition: animationPosition + 2,
-								timestamps: timestamps.length,
-								markerPosition: markerPosition + 1,
-								markers: config.markers.length,
-								ts: timestamps[animationPosition + 1],
-							});
-						});
-					} else {
-						window.takeScreenshot({
-							timestampPosition: animationPosition + 2,
-							timestamps: timestamps.length,
-							markerPosition: markerPosition + 1,
-							markers: config.markers.length,
-							ts: timestamps[animationPosition + 1],
-						});
 					}
 
 					play();
