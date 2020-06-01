@@ -20,8 +20,10 @@
 	},
 	"homepage": "https://github.com/jalibu/MMM-RAIN-MAP#readme",
 	"dependencies": {
+		"electron": "^9.0.0",
 		"gifencoder": "^2.0.1",
 		"png-file-stream": "^1.2.1",
-		"puppeteer": "^3.2.0"
+		"puppeteer": "^3.2.0",
+		"puppeteer-in-electron": "^3.0.1"
 	}
 }

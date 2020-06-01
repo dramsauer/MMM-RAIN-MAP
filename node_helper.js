@@ -1,11 +1,14 @@
 const NodeHelper = require("node_helper");
 const puppeteer = require("puppeteer");
 const NodeUtils = require("./NodeUtils");
+const { BrowserWindow, app } = require("electron");
+const pie = require("puppeteer-in-electron");
 module.exports = NodeHelper.create({
 	browser: null,
 	currentRenderPosition: 0,
 	shotsDir: "",
 	pubDir: "",
+	isRunning: false,
 	start: function () {
 		console.log(`${this.name} helper method started...`);
 	},
@@ -23,45 +26,59 @@ module.exports = NodeHelper.create({
 	},
 
 	handleNodeHelperMessage: async function (msg, page, config) {
-		console.log("Notification received:", msg);
-		switch (msg.notification) {
-			case "MAP_INIT_SUCCESS":
-				await page.evaluate(() => {
-					getTimestamps();
-				});
-				break;
-			case "GET_TIMESTAMPS_SUCCESS":
-				this.timestamps = msg.data;
-				this.currentRenderPosition = 0;
-				await page.evaluate(() => {
-					renderNextFrame();
-				});
-				break;
-			case "RENDER_FRAME_SUCCESS":
-				await page
-					.screenshot({
-						path: `${this.shotsDir}shot-${msg.data.markerPosition}_${msg.data.ts}.png`,
-					})
-					.catch((err) => {});
-				if (msg.data.hasMore) {
-					await page.evaluate(() => {
-						renderNextFrame();
-					});
-				} else {
-					if (this.browser) {
-						this.browser.close().catch();
+		try {
+			console.log("Notification received:", msg);
+			switch (msg.notification) {
+				case "MAP_INIT_SUCCESS":
+					if (!this.isRunning) {
+						this.timestamps = msg.data;
+						this.currentRenderPosition = 0;
+						await page.evaluate(() => {
+							renderNextFrame();
+						});
 					}
-					const ts = await NodeUtils.renderImagesToGif(
-						config,
-						this.shotsDir,
-						this.pubDir
-					);
-					this.sendSocketNotification(
-						"RAIN_MAP_PRERENDER_SUCCESS",
-						`preRenderedMap${ts}.gif`
-					);
-				}
-				break;
+
+					break;
+				case "RENDER_FRAME_SUCCESS":
+					await page
+						.screenshot({
+							path: `${this.shotsDir}shot-${msg.data.markerPosition}_${msg.data.ts}.png`,
+						})
+						.catch((err) => {});
+					if (msg.data.hasMore) {
+						setTimeout(async () => {
+							try {
+								await page
+									.evaluate(() => {
+										renderNextFrame();
+									})
+									.catch();
+							} catch (err) {}
+						}, 1000);
+					} else {
+						try {
+							setTimeout(async () => {
+								await this.browser.close();
+								this.isRunning = false;
+							}, 1000);
+						} catch (err) {}
+						const ts = await NodeUtils.renderImagesToGif(
+							config,
+							this.shotsDir,
+							this.pubDir
+						);
+						this.sendSocketNotification(
+							"RAIN_MAP_PRERENDER_SUCCESS",
+							`preRenderedMap${ts}.gif`
+						);
+					}
+					break;
+			}
+		} catch (err) {
+			if (this.browser) {
+				this.browser.close().catch();
+			}
+			this.isRunning = false;
 		}
 	},
 	setupBrowser: async function (remoteConfig) {
@@ -95,11 +112,11 @@ module.exports = NodeHelper.create({
 			});
 			self.returnStatus(25, "Viewport adjusted");
 
-			await page.exposeFunction("postNodeHelperMessage", (msg) => {
-				self.handleNodeHelperMessage(msg, page, remoteConfig);
+			await page.exposeFunction("postNodeHelperMessage", async (msg) => {
+				await self.handleNodeHelperMessage(msg, page, remoteConfig);
 			});
 			self.returnStatus(30, "Setup complete. Ready to capture!");
-
+			console.log("send init command");
 			await page.evaluate((data) => {
 				config = data;
 				initMap();
@@ -110,6 +127,7 @@ module.exports = NodeHelper.create({
 			if (this.browser) {
 				this.browser.close().catch();
 			}
+			this.isRunning = false;
 		}
 	},
 });
