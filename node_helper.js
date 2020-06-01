@@ -48,6 +48,9 @@ module.exports = NodeHelper.create({
 						renderNextFrame();
 					});
 				} else {
+					if (this.browser) {
+						this.browser.close().catch();
+					}
 					const ts = await NodeUtils.renderImagesToGif(
 						config,
 						this.shotsDir,
