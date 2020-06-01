@@ -73,8 +73,8 @@ module.exports = NodeHelper.create({
 
 			this.browser = await puppeteer.launch({
 				executablePath: remoteConfig.chromePath,
-				headless: false,
-				devtools: true,
+				headless: true,
+				devtools: false,
 			});
 			self.returnStatus(20, "Browser launched");
 			const page = await this.browser.newPage();
