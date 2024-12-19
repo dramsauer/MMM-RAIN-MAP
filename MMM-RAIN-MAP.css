@@ -1,15 +1,15 @@
 .rain-map-time-wrapper {
-  --color-history: #003aff;
-  --color-now: #000;
-  --color-forecast: #ff0074;
+  --color-history: #079195;
+  --color-now: #d8d3d3;
+  --color-forecast: #b80455;
 
   position: absolute;
   display: block;
-  background: #ccc;
+  background: #4141419c;
   padding: 0 10px;
   z-index: 999;
   opacity: 0.75;
-  color: #000;
+  color: #b8b5b5;
   font-size: 1.2rem;
 }
 
